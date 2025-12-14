@@ -6,6 +6,10 @@ import connectDB from './database/connectDB.js';
 import userRoutes from './routes/userRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import doctorRoutes from './routes/doctorRoutes.js';
+import ambulanceRoutes from './routes/ambulanceRoutes.js';
+import bloodRoutes from './routes/bloodRoutes.js';
+import donorRoutes from './routes/donorRoutes.js';
+import driverRoutes from './routes/driverRoutes.js';
 
 dotenv.config();
 connectDB(); 
@@ -16,6 +20,10 @@ app.use(express.json());
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/doctor', doctorRoutes);
+app.use('/api/ambulance', ambulanceRoutes);
+app.use('/api/blood', bloodRoutes);
+app.use('/api/donor', donorRoutes);
+app.use('/api/driver', driverRoutes);
 
 
 

@@ -1,0 +1,143 @@
+// server/controllers/bloodRequestController.js
+import BloodRequest from '../models/BloodRequest.js';
+import User from '../models/User.js';
+import BloodDonor from '../models/BloodDonor.js';
+
+// @desc Create a blood request
+// @route POST /api/blood/request
+export const createBloodRequest = async (req, res) => {
+  try {
+    const { blood_type, location } = req.body;
+    const patient_id = req.user._id;
+
+    if (!blood_type || !location) {
+      return res.status(400).json({ message: 'Blood type and location are required.' });
+    }
+
+    const request = await BloodRequest.create({
+      patient_id,
+      blood_type,
+      location
+    });
+
+    res.status(201).json({ message: 'Blood request created.', request });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// @desc Get all pending requests for available donors
+// @route GET /api/blood/requests
+export const getPendingRequests = async (req, res) => {
+  try {
+    const donor = await BloodDonor.findOne({ user_id: req.user._id });
+    if (!donor || !donor.available) {
+      return res.status(403).json({ message: 'You must be available to view requests.' });
+    }
+
+    const allRelevantRequests = await BloodRequest.find({
+      $or: [
+        { status: 'requested' },
+        { status: 'accepted', donor_id: req.user._id }
+      ]
+    }).populate('patient_id', 'name phone location');
+
+    const enrichedRequests = allRelevantRequests.map(request => ({
+      ...request.toObject(),
+      current_user_id: req.user._id
+    }));
+    console.log('Returning requests to donor:', enrichedRequests);
+    res.status(200).json(enrichedRequests);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+
+
+// @desc Donor accepts a blood request
+// @route PATCH /api/blood/accept/:id
+export const acceptBloodRequest = async (req, res) => {
+  try {
+    const donor_id = req.user._id;
+    const requestId = req.params.id;
+
+    const donorProfile = await BloodDonor.findOne({ user_id: donor_id });
+    if (!donorProfile || !donorProfile.available) {
+      return res.status(403).json({ message: 'You must be available to accept requests.' });
+    }
+
+    const request = await BloodRequest.findById(requestId);
+    if (!request) {
+      return res.status(404).json({ message: 'Blood request not found.' });
+    }
+    if (request.status !== 'requested') {
+      return res.status(400).json({ message: 'This request has already been accepted.' });
+    }
+
+    request.status = 'accepted';
+    request.donor_id = donor_id;
+    request.accepted_at = new Date();
+    await request.save();
+
+    const today = new Date().toISOString().split('T')[0];
+    donorProfile.donation_history.push(today);
+    await donorProfile.save();
+
+    res.status(200).json({ message: 'Request accepted.', request });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// @desc Get all requests for logged-in patient
+// @route GET /api/blood/my-requests
+export const getMyRequests = async (req, res) => {
+  try {
+    const patient_id = req.user._id;
+    const requests = await BloodRequest.find({ patient_id }).sort({ createdAt: -1 })
+      .populate('donor_id', 'name phone');
+
+    const formatted = requests.map(req => ({
+      id: req._id,
+      blood_type: req.blood_type,
+      location: req.location,
+      status: req.status,
+      requested_at: req.requested_at,
+      accepted_at: req.accepted_at,
+      donor: req.donor_id ? {
+        name: req.donor_id.name,
+        phone: req.donor_id.phone
+      } : null
+    }));
+
+    res.status(200).json(formatted);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// @desc Mark a blood request as completed (donor only)
+// @route PATCH /api/blood/complete/:id
+export const completeDonation = async (req, res) => {
+  try {
+    const donor_id = req.user._id;
+    const request = await BloodRequest.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({ message: 'Blood request not found.' });
+    }
+
+    if (request.donor_id.toString() !== donor_id.toString()) {
+      return res.status(403).json({ message: 'You are not assigned to this request.' });
+    }
+
+    request.status = 'completed';
+    request.completed_at = new Date();
+    await request.save();
+
+    res.status(200).json({ message: 'Donation marked as completed.', request });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
