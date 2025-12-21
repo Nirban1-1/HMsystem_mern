@@ -4,7 +4,10 @@ import {
   getDoctorDashboard,
   addAvailableSlot,
   updateSpecialization,
-  deleteSlot  
+  deleteSlot,
+  createPrescription,
+  getTreatedPatients,
+  getPatientHistory
 } from '../controllers/doctorController.js';
 import { requireAuth, requireVerified } from '../middleware/authMiddleware.js'; // assuming the folder is 'middlewares'
 
@@ -22,5 +25,13 @@ router.put('/specialization', requireAuth, requireVerified, updateSpecialization
 // DELETE /api/doctor/slots
 router.delete('/slots', requireAuth, requireVerified, deleteSlot);
 
+// POST /api/doctor/prescribe - Create prescription
+router.post('/prescribe', requireAuth, requireVerified, createPrescription);
+
+// GET /api/doctor/treated-patients - Get all treated patients
+router.get('/treated-patients', requireAuth, requireVerified, getTreatedPatients);
+
+// GET /api/doctor/patient-history/:patientId - Get patient treatment history
+router.get('/patient-history/:patientId', requireAuth, requireVerified, getPatientHistory);
 
 export default router;
