@@ -15,6 +15,8 @@ const DoctorDashboard = () => {
   const [activeTab, setActiveTab] = useState('appointments'); // 'appointments', 'slots', or 'treated'
   const [medicines, setMedicines] = useState([]);
   const [medicineSearch, setMedicineSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedMedicines, setSelectedMedicines] = useState([]);
   const [treatedPatients, setTreatedPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -43,18 +45,33 @@ const DoctorDashboard = () => {
     fetchDoctorData();
   }, []);
 
+  // Dynamic medicine search with debouncing
   useEffect(() => {
-    const fetchMedicines = async () => {
+    const searchMedicines = async () => {
+      if (!medicineSearch || medicineSearch.length < 1) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
       try {
-        const res = await axios.get('/api/medicines', { headers });
-        setMedicines(res.data.medicines || []);
+        const res = await axios.get(`/api/medicines/autocomplete?q=${medicineSearch}`, { headers });
+        setSearchResults(res.data.medicines || []);
       } catch (err) {
-        console.error('Failed to load medicines:', err);
+        console.error('Failed to search medicines:', err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
       }
     };
 
-    fetchMedicines();
-  }, []);
+    // Debounce search - wait 300ms after user stops typing
+    const debounceTimer = setTimeout(() => {
+      searchMedicines();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [medicineSearch]);
 
   useEffect(() => {
     if (activeTab === 'treated') {
@@ -783,35 +800,65 @@ const DoctorDashboard = () => {
                     {/* Medicine Search and Selection */}
                     <div className="space-y-3">
                       <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="Search medicines by name or category..."
-                          value={medicineSearch}
-                          onChange={(e) => setMedicineSearch(e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purpleColor focus:ring-2 focus:ring-purpleColor/20 outline-none transition-all"
-                        />
-                        {medicineSearch && (
-                          <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                            {medicines
-                              .filter(med => 
-                                med.drugName.toLowerCase().includes(medicineSearch.toLowerCase()) ||
-                                med.category.toLowerCase().includes(medicineSearch.toLowerCase())
-                              )
-                              .slice(0, 10)
-                              .map(medicine => (
-                                <div
-                                  key={medicine._id}
-                                  onClick={() => {
-                                    handleAddMedicine(medicine);
-                                    setMedicineSearch('');
-                                  }}
-                                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
-                                >
-                                  <p className="font-semibold text-headingColor">{medicine.drugName}</p>
-                                  <p className="text-xs text-textColor">{medicine.category} - {medicine.manufacturer}</p>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Type medicine name (e.g., 'A' for all medicines starting with A)..."
+                            value={medicineSearch}
+                            onChange={(e) => setMedicineSearch(e.target.value)}
+                            className="w-full px-4 py-3 pr-10 border-2 border-gray-200 rounded-xl focus:border-purpleColor focus:ring-2 focus:ring-purpleColor/20 outline-none transition-all"
+                          />
+                          {isSearching && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purpleColor"></div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {medicineSearch && searchResults.length > 0 && (
+                          <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-96 overflow-y-auto">
+                            <div className="p-2 bg-gray-50 border-b border-gray-200">
+                              <p className="text-xs text-textColor font-semibold">
+                                {searchResults.length} medicine(s) found
+                              </p>
+                            </div>
+                            {searchResults.map(medicine => (
+                              <div
+                                key={medicine._id}
+                                onClick={() => {
+                                  handleAddMedicine(medicine);
+                                  setMedicineSearch('');
+                                  setSearchResults([]);
+                                }}
+                                className="px-4 py-3 hover:bg-purpleColor/5 cursor-pointer border-b border-gray-100 last:border-0 transition-colors"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-headingColor">{medicine.drugName}</p>
+                                    <p className="text-xs text-textColor mt-1">{medicine.description}</p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                        {medicine.category}
+                                      </span>
+                                      <span className="text-xs text-textColor">{medicine.manufacturer}</span>
+                                      <span className="text-xs text-green-600 font-semibold">
+                                        Stock: {medicine.countInStock}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right ml-3">
+                                    <p className="text-sm font-bold text-primaryColor">৳{medicine.price}</p>
+                                    <p className="text-xs text-textColor">{medicine.consumeType}</p>
+                                  </div>
                                 </div>
-                              ))
-                            }
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {medicineSearch && !isSearching && searchResults.length === 0 && (
+                          <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg p-4">
+                            <p className="text-sm text-textColor text-center">No medicines found matching "{medicineSearch}"</p>
                           </div>
                         )}
                       </div>
