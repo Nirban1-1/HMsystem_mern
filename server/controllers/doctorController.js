@@ -3,6 +3,8 @@ import User from '../models/User.js';
 import Doctor from '../models/Doctor.js';
 import Appointment from '../models/Appointment.js';
 import Prescription from '../models/Prescription.js';
+import Test from '../models/Test.js';
+import TestReport from '../models/TestReport.js';
 
 export const getDoctorDashboard = async (req, res) => {
   try {
@@ -127,7 +129,7 @@ export const deleteSlot = async (req, res) => {
 // @access  Private (Doctor)
 export const createPrescription = async (req, res) => {
   try {
-    const { appointment_id, notes, medicines } = req.body;
+    const { appointment_id, notes, medicines, tests } = req.body;
 
     if (!appointment_id || !medicines || medicines.length === 0) {
       return res.status(400).json({ message: 'Appointment ID and at least one medicine are required.' });
@@ -149,6 +151,40 @@ export const createPrescription = async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to prescribe for this appointment.' });
     }
 
+    // Normalize and resolve tests input so Prescription.tests has required `test_name`
+    const testsInput = Array.isArray(tests) ? tests : [];
+    const resolvedTests = [];
+
+    for (const t of testsInput) {
+      let testId = t.testId || t.test_id || t.testId || null;
+      let testName = t.testName || t.test_name || t.name || '';
+      const showingDate = t.showingDate || t.showing_date || null;
+
+      if (testId) {
+        try {
+          const testDoc = await Test.findById(testId);
+          if (testDoc) {
+            testName = testDoc.name;
+          }
+        } catch (err) {
+          // ignore lookup errors and fallback to provided name
+        }
+      }
+
+      // If no name but we have an id, attempt to create or lookup
+      if (!testName && testId) {
+        try {
+          const testDoc = await Test.findById(testId);
+          if (testDoc) testName = testDoc.name;
+        } catch (err) {}
+      }
+
+      // If still no name, skip this test
+      if (!testName) continue;
+
+      resolvedTests.push({ testId, testName, showingDate });
+    }
+
     // Create prescription
     const prescription = new Prescription({
       appointment_id,
@@ -164,7 +200,12 @@ export const createPrescription = async (req, res) => {
           noon: med.timing?.noon || 0,
           night: med.timing?.night || 0
         }
-      }))
+      })),
+      tests: resolvedTests.length > 0 ? resolvedTests.map(rt => ({
+        test_name: rt.testName,
+        description: '',
+        status: 'suggested'
+      })) : []
     });
 
     await prescription.save();
@@ -173,6 +214,40 @@ export const createPrescription = async (req, res) => {
     appointment.status = 'treated';
     appointment.prescription_id = prescription._id;
     await appointment.save();
+
+    // If tests were provided, create a TestReport document linked to this prescription
+    if (resolvedTests && Array.isArray(resolvedTests) && resolvedTests.length > 0) {
+      try {
+        const reportTests = [];
+
+        for (const t of resolvedTests) {
+          let testId = t.testId || null;
+          let testName = t.testName || t.test_name || '';
+          const showingDate = t.showingDate ? new Date(t.showingDate) : new Date();
+
+          if (!testId) {
+            // Try to find by name, create if missing
+            let testDoc = await Test.findOne({ name: testName });
+            if (!testDoc) {
+              testDoc = await Test.create({ name: testName });
+            }
+            testId = testDoc._id;
+            testName = testDoc.name;
+          }
+
+          reportTests.push({ test: testId, testName, showingDate });
+        }
+
+        await TestReport.create({
+          prescription: prescription._id,
+          patient: appointment.patient_id,
+          doctor: req.user._id,
+          tests: reportTests
+        });
+      } catch (err) {
+        console.error('Failed to create TestReport for prescription:', err);
+      }
+    }
 
     res.status(201).json({ 
       success: true,
@@ -285,6 +360,126 @@ export const getPatientHistory = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching patient history:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// @desc    Add test suggestion to prescription
+// @route   PUT /api/doctor/prescription/:prescriptionId/tests
+// @access  Private (Doctor)
+export const addTestSuggestion = async (req, res) => {
+  try {
+    const { prescriptionId } = req.params;
+    const { test_name, description } = req.body;
+
+    if (!test_name) {
+      return res.status(400).json({ message: 'Test name is required.' });
+    }
+
+    const prescription = await Prescription.findById(prescriptionId);
+    if (!prescription) {
+      return res.status(404).json({ message: 'Prescription not found.' });
+    }
+
+    // Verify doctor owns this prescription
+    const doctor = await Doctor.findOne({ user_id: req.user._id });
+    if (prescription.doctor_id.toString() !== doctor._id.toString()) {
+      return res.status(403).json({ message: 'Unauthorized to add tests to this prescription.' });
+    }
+
+    // Add test to tests array
+    prescription.tests.push({
+      test_name,
+      description: description || '',
+      status: 'suggested'
+    });
+
+    await prescription.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Test suggestion added successfully.',
+      prescription
+    });
+  } catch (error) {
+    console.error('Error adding test suggestion:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// @desc    Update test report (patient uploads test results)
+// @route   PUT /api/doctor/prescription/:prescriptionId/test/:testId/report
+// @access  Private (Patient)
+export const uploadTestReport = async (req, res) => {
+  try {
+    const { prescriptionId, testId } = req.params;
+    const { test_report } = req.body;
+
+    if (!test_report) {
+      return res.status(400).json({ message: 'Test report is required.' });
+    }
+
+    const prescription = await Prescription.findById(prescriptionId);
+    if (!prescription) {
+      return res.status(404).json({ message: 'Prescription not found.' });
+    }
+
+    // Verify patient owns this prescription
+    if (prescription.patient_id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Unauthorized to upload test report for this prescription.' });
+    }
+
+    // Find and update the specific test
+    const test = prescription.tests.id(testId);
+    if (!test) {
+      return res.status(404).json({ message: 'Test not found in this prescription.' });
+    }
+
+    test.test_report = test_report;
+    test.report_date = new Date();
+    test.status = 'completed';
+
+    await prescription.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Test report uploaded successfully.',
+      test
+    });
+  } catch (error) {
+    console.error('Error uploading test report:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
+// @desc    Get prescription with tests
+// @route   GET /api/doctor/prescription/:prescriptionId
+// @access  Private (Patient/Doctor)
+export const getPrescriptionDetails = async (req, res) => {
+  try {
+    const { prescriptionId } = req.params;
+
+    const prescription = await Prescription.findById(prescriptionId)
+      .populate('doctor_id', 'specialization')
+      .populate('patient_id', 'name phone email')
+      .populate('medicines.medicine_id', 'drugName manufacturer description');
+
+    if (!prescription) {
+      return res.status(404).json({ message: 'Prescription not found.' });
+    }
+
+    // Verify user has access to this prescription
+    if (prescription.patient_id._id.toString() !== req.user._id.toString() && 
+        prescription.doctor_id.toString() !== (await Doctor.findOne({ user_id: req.user._id }))?._id?.toString()) {
+      return res.status(403).json({ message: 'Unauthorized to view this prescription.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      prescription
+    });
+  } catch (error) {
+    console.error('Error fetching prescription details:', error);
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };

@@ -12,6 +12,8 @@ import donorRoutes from './routes/donorRoutes.js';
 import driverRoutes from './routes/driverRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
 import medicineRoutes from './routes/medicineRoutes.js';
+import testRoutes from "./routes/testRoutes.js";
+import testReportRoutes from "./routes/testReportRoutes.js";
 
 dotenv.config();
 connectDB(); 
@@ -28,7 +30,8 @@ app.use('/api/donor', donorRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/appointment', appointmentRoutes);
 app.use('/api/medicines', medicineRoutes);
-
+app.use("/api/tests", testRoutes);
+app.use("/api/test-reports", testReportRoutes);
 
 
 app.get('/', (req, res) => {

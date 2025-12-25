@@ -49,6 +49,29 @@ const prescriptionSchema = new mongoose.Schema({
       }
     }
   }],
+  tests: [{
+    test_name: {
+      type: String,
+      required: true
+    },
+    description: {
+      type: String,
+      default: ''
+    },
+    test_report: {
+      type: String,
+      default: ''
+    },
+    report_date: {
+      type: Date,
+      default: null
+    },
+    status: {
+      type: String,
+      enum: ['suggested', 'completed', 'pending'],
+      default: 'suggested'
+    }
+  }],
   date: {
     type: Date,
     default: Date.now

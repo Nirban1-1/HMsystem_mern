@@ -5,7 +5,8 @@ import {
   getUserProfile,
   updateUserProfile,
   verifyUserInfo,
-  resetPassword
+  resetPassword,
+  getPatientPrescriptions
 } from '../controllers/userController.js';
 
 import { requireAuth } from '../middleware/authMiddleware.js';
@@ -28,5 +29,8 @@ router.post('/verify-user', verifyUserInfo);
 
 router.post('/reset-password', resetPassword);
 
+// @route   GET /api/users/prescriptions
+// @desc    Get all prescriptions for logged-in patient
+router.get('/prescriptions', requireAuth, getPatientPrescriptions);
 
 export default router;
