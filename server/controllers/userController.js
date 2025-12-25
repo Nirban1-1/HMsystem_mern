@@ -167,3 +167,27 @@ export const resetPassword = async (req, res) => {
 
   res.json({ success: true, message: 'Password updated successfully' });
 };
+
+// @desc    Get all prescriptions for a patient
+// @route   GET /api/users/prescriptions
+// @access  Private (Patient)
+export const getPatientPrescriptions = async (req, res) => {
+  try {
+    const Prescription = require('../models/Prescription.js').default;
+    
+    const prescriptions = await Prescription.find({ patient_id: req.user._id })
+      .populate('doctor_id', 'specialization')
+      .populate('appointment_id', 'date time status')
+      .populate('medicines.medicine_id', 'drugName manufacturer description consumeType')
+      .sort({ date: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: prescriptions.length,
+      prescriptions
+    });
+  } catch (error) {
+    console.error('Error fetching prescriptions:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};

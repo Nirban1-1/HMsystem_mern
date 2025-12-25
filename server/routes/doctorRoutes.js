@@ -7,7 +7,10 @@ import {
   deleteSlot,
   createPrescription,
   getTreatedPatients,
-  getPatientHistory
+  getPatientHistory,
+  addTestSuggestion,
+  uploadTestReport,
+  getPrescriptionDetails
 } from '../controllers/doctorController.js';
 import { requireAuth, requireVerified } from '../middleware/authMiddleware.js'; // assuming the folder is 'middlewares'
 
@@ -33,5 +36,14 @@ router.get('/treated-patients', requireAuth, requireVerified, getTreatedPatients
 
 // GET /api/doctor/patient-history/:patientId - Get patient treatment history
 router.get('/patient-history/:patientId', requireAuth, requireVerified, getPatientHistory);
+
+// GET /api/doctor/prescription/:prescriptionId - Get prescription details with tests
+router.get('/prescription/:prescriptionId', requireAuth, getPrescriptionDetails);
+
+// PUT /api/doctor/prescription/:prescriptionId/tests - Add test suggestion
+router.put('/prescription/:prescriptionId/tests', requireAuth, requireVerified, addTestSuggestion);
+
+// PUT /api/doctor/prescription/:prescriptionId/test/:testId/report - Upload test report
+router.put('/prescription/:prescriptionId/test/:testId/report', requireAuth, uploadTestReport);
 
 export default router;
