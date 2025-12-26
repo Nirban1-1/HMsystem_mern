@@ -15,11 +15,24 @@ import medicineRoutes from './routes/medicineRoutes.js';
 import testRoutes from "./routes/testRoutes.js";
 import testReportRoutes from "./routes/testReportRoutes.js";
 import paymentRoutes from './routes/paymentRoutes.js';
+import chatbotRoutes from './routes/chatbotRoutes.js';
 
 dotenv.config();
 connectDB(); 
 
 const app = express();
+
+// CORS middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json());
 
 app.use('/api/users', userRoutes);
@@ -34,6 +47,7 @@ app.use('/api/medicines', medicineRoutes);
 app.use("/api/tests", testRoutes);
 app.use("/api/test-reports", testReportRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 
 app.get('/', (req, res) => {

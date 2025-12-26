@@ -42,3 +42,6 @@ export const requireAdmin = (req, res, next) => {
 
   return res.status(403).json({ message: 'Forbidden: Admins only' });
 };
+
+// Alias for compatibility
+export const protect = requireAuth;
