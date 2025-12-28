@@ -4,7 +4,9 @@ import {
   createBloodRequest,
   getPendingRequests,
   acceptBloodRequest,
-  getMyRequests
+  getMyRequests,
+  completeDonation,
+  getDonationHistory,
 } from '../controllers/bloodRequestController.js';
 import { requireAuth, requireVerified } from '../middleware/authMiddleware.js';
 
@@ -21,5 +23,10 @@ router.patch('/accept/:id', requireAuth, requireVerified, acceptBloodRequest);
 
 // Patients: view their own blood requests with donor info (if accepted)
 router.get('/mine', requireAuth, getMyRequests);
+
+// Donors: mark donation as completed
+router.patch('/complete/:id', requireAuth, requireVerified, completeDonation);
+
+router.get('/history', requireAuth, requireVerified, getDonationHistory);
 
 export default router;

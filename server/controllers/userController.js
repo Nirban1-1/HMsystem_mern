@@ -5,17 +5,26 @@ const require = createRequire(import.meta.url);
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-
 export const registerUser = async (req, res) => {
-  const { name, email, password, phone, location, blood_type, role } = req.body;
+  const { name, email, password, phone, location, blood_type, role, staff_category } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ message: 'Email already registered' });
 
-    const validRoles = ['admin', 'doctor', 'patient', 'donor', 'ambulance_driver'];
+    const validRoles = ['admin', 'doctor', 'patient', 'donor', 'ambulance_driver', 'staff'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ message: 'Invalid role selected' });
+    }
+
+    // Validate staff_category if role is staff
+    if (role === 'staff') {
+      const validStaffCategories = ['receptionist', 'nurse', 'ward_boy'];
+      if (!staff_category || !validStaffCategories.includes(staff_category)) {
+        return res.status(400).json({
+          message: 'Invalid staff category. Must be: receptionist, nurse, or ward_boy'
+        });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -29,11 +38,16 @@ export const registerUser = async (req, res) => {
       location,
       blood_type,
       role,
+      staff_category: role === 'staff' ? staff_category : undefined,
       is_verified: autoVerified
     });
 
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      {
+        id: user._id,
+        role: user.role,
+        staff_category: user.staff_category || null
+      },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -45,7 +59,8 @@ export const registerUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        staff_category: user.staff_category || null
       }
     });
   } catch (error) {
@@ -53,9 +68,6 @@ export const registerUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-
-
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
@@ -67,9 +79,17 @@ export const loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: '7d'
-    });
+    const token = jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+        staff_category: user.staff_category || null
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '7d'
+      }
+    );
 
     res.json({
       message: 'Login successful',
@@ -78,14 +98,14 @@ export const loginUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        staff_category: user.staff_category || null
       }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 export const getUserProfile = async (req, res) => {
   try {
@@ -98,10 +118,9 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-
 export const updateUserProfile = async (req, res) => {
   try {
-    const { name, phone, location, password, is_active_donor } = req.body;
+    const { name, phone, location, password, is_active_donor, staff_category } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -109,6 +128,17 @@ export const updateUserProfile = async (req, res) => {
     // Optional toggle for donor availability (doesn't require password)
     if (typeof is_active_donor !== 'undefined') {
       user.is_active_donor = is_active_donor;
+    }
+
+    // Update staff_category if user is staff and provided
+    if (user.role === 'staff' && staff_category) {
+      const validStaffCategories = ['receptionist', 'nurse', 'ward_boy'];
+      if (!validStaffCategories.includes(staff_category)) {
+        return res.status(400).json({
+          message: 'Invalid staff category. Must be: receptionist, nurse, or ward_boy'
+        });
+      }
+      user.staff_category = staff_category;
     }
 
     // If user is updating profile info (name, phone, location), verify password
@@ -137,6 +167,7 @@ export const updateUserProfile = async (req, res) => {
         location: updatedUser.location,
         blood_type: updatedUser.blood_type,
         role: updatedUser.role,
+        staff_category: updatedUser.staff_category || null,
         is_verified: updatedUser.is_verified,
         is_active_donor: updatedUser.is_active_donor
       }
@@ -146,6 +177,7 @@ export const updateUserProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error updating profile' });
   }
 };
+
 export const verifyUserInfo = async (req, res) => {
   const { email, phone, name } = req.body;
 
@@ -174,14 +206,14 @@ export const resetPassword = async (req, res) => {
 export const getPatientPrescriptions = async (req, res) => {
   try {
     const Prescription = require('../models/Prescription.js').default;
-    
+
     const prescriptions = await Prescription.find({ patient_id: req.user._id })
       .populate({
         path: 'doctor_id',
         select: 'specialization user_id',
         populate: {
           path: 'user_id',
-          select: 'name'  // ✅ Get doctor's name from User model
+          select: 'name'
         }
       })
       .populate('appointment_id', 'date time status')
@@ -191,7 +223,7 @@ export const getPatientPrescriptions = async (req, res) => {
     const transformedPrescriptions = prescriptions.map(p => ({
       _id: p._id,
       doctor: {
-        name: p.doctor_id?.user_id?.name || 'Unknown Doctor',  // ✅ Get name from nested user_id
+        name: p.doctor_id?.user_id?.name || 'Unknown Doctor',
         specialization: p.doctor_id?.specialization
       },
       appointment: {

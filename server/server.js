@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import connectDB from './database/connectDB.js';
+import mongoose from 'mongoose';
 
 
 import userRoutes from './routes/userRoutes.js';
@@ -16,6 +17,8 @@ import testRoutes from "./routes/testRoutes.js";
 import testReportRoutes from "./routes/testReportRoutes.js";
 import paymentRoutes from './routes/paymentRoutes.js';
 import chatbotRoutes from './routes/chatbotRoutes.js';
+import receptionRoutes from './routes/receptionRoutes.js';
+import staffRoutes from './routes/staffRoutes.js';
 
 dotenv.config();
 connectDB(); 
@@ -48,6 +51,9 @@ app.use("/api/tests", testRoutes);
 app.use("/api/test-reports", testReportRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/reception', receptionRoutes);
+app.use('/api/staff', staffRoutes);
+
 
 
 app.get('/', (req, res) => {

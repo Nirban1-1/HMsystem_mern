@@ -12,7 +12,10 @@ import PatientDashboard from './pages/dashboard/PatientDashboard';
 import DoctorDashboard from './pages/dashboard/DoctorDashboard';
 import DonorDashboard from './pages/dashboard/DonorDashboard';
 import DriverDashboard from './pages/dashboard/DriverDashboard';
-import Prescriptions from './pages/Patient/Prescriptions'; // ✅ ADD THIS
+import Prescriptions from './pages/Patient/Prescriptions'; 
+import ReceptionistDashboard from './pages/dashboard/ReceptionistDashboard'; 
+import NurseDashboard from './pages/dashboard/NurseDashboard';          
+import WardboyDashboard from './pages/dashboard/WardboyDashboard'; 
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -67,6 +70,14 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route
+          path="/dashboard/receptionist"
+          element={
+            <ProtectedRoute>
+              <ReceptionistDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route 
           path="/admin-dashboard" 
           element={
@@ -75,8 +86,23 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route
+          path="/dashboard/nurse"
+          element={
+            <ProtectedRoute>
+              <NurseDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* ✅ ADD PRESCRIPTIONS ROUTE */}
+        <Route
+          path="/dashboard/wardboy"
+          element={
+            <ProtectedRoute>
+              <WardboyDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route 
           path="/prescriptions" 
           element={
