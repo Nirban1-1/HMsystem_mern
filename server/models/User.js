@@ -11,15 +11,22 @@ const userSchema = new mongoose.Schema({
 
   role: {
     type: String,
-    enum: ['admin', 'doctor', 'patient', 'donor', 'ambulance_driver'],
+    enum: ['admin', 'doctor', 'patient', 'donor', 'ambulance_driver', 'staff'],
     required: true
   },
 
-  // Role-specific fields
-  is_verified: { type: Boolean, default: false },           // manually verified for doctors, donors, drivers
-  // is_active_donor: { type: Boolean, default: false },       // donor status toggle
-  // is_active_driver: { type: Boolean, default: false },      // driver status toggle
+  // NEW: staff category (only for staff role)
+  staff_category: {
+    type: String,
+    enum: ['receptionist', 'nurse', 'ward_boy'],
+    required: function () {
+      return this.role === 'staff';
+    },
+    default: null
+  },
 
+  // Role-specific fields
+  is_verified: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

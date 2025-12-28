@@ -2,30 +2,36 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import logo from '../../assets/images/logo.png';
 import { BiMenu } from 'react-icons/bi';
-import {jwtDecode} from 'jwt-decode'; 
+import { jwtDecode } from 'jwt-decode';
 
 const Header = () => {
   const headerRef = useRef(null);
   const menuRef = useRef(null);
+
   const [role, setRole] = useState(null);
+  const [staffCategory, setStaffCategory] = useState(null); // ✅ NEW
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   const navigate = useNavigate();
 
   const checkAuth = () => {
     const token = localStorage.getItem('token');
     setIsAuthenticated(!!token);
-    
+
     if (token) {
       try {
         const decoded = jwtDecode(token);
         setRole(decoded.role);
+        setStaffCategory(decoded.staff_category || null); // ✅ NEW
       } catch (err) {
         console.error('Invalid token:', err);
         setIsAuthenticated(false);
         setRole(null);
+        setStaffCategory(null); // ✅ NEW
       }
     } else {
       setRole(null);
+      setStaffCategory(null); // ✅ NEW
     }
   };
 
@@ -38,7 +44,7 @@ const Header = () => {
     };
 
     window.addEventListener('authChange', handleAuthChange);
-    
+
     return () => {
       window.removeEventListener('authChange', handleAuthChange);
     };
@@ -71,6 +77,14 @@ const Header = () => {
         return '/dashboard/donor';
       case 'ambulance_driver':
         return '/dashboard/driver';
+
+      case 'staff':
+        // ✅ NEW: staff dashboard based on staff_category in token
+        if (staffCategory === 'receptionist') return '/dashboard/receptionist';
+        if (staffCategory === 'nurse') return '/dashboard/nurse';
+        if (staffCategory === 'ward_boy') return '/dashboard/wardboy';
+        return '/dashboard/receptionist';
+
       default:
         return null;
     }
@@ -83,17 +97,14 @@ const Header = () => {
         ...(role && role !== 'admin'
           ? [
               { path: getDashboardPathByRole(), display: 'Dashboard' },
-              ...(role === 'patient' ? [{ path: '/prescriptions', display: 'Prescriptions' }] : [])
+              ...(role === 'patient' ? [{ path: '/prescriptions', display: 'Prescriptions' }] : []),
             ]
           : role === 'admin'
           ? [{ path: '/admin-dashboard', display: 'Admin Dashboard' }]
           : []),
-        { path: '/account', display: 'Account' }
+        { path: '/account', display: 'Account' },
       ]
-    : [
-        { path: '/home', display: 'Home' }
-        // Login/Signup removed from middle - only show as buttons on right
-      ];
+    : [{ path: '/home', display: 'Home' }];
 
   return (
     <header className="header flex items-center" ref={headerRef}>
@@ -127,13 +138,16 @@ const Header = () => {
           {/* Right side */}
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
-              <button 
+              <button
                 onClick={() => {
                   localStorage.removeItem('token');
                   localStorage.removeItem('role');
                   localStorage.removeItem('user');
+
                   setIsAuthenticated(false);
                   setRole(null);
+                  setStaffCategory(null); // ✅ NEW
+
                   window.dispatchEvent(new Event('authChange'));
                   navigate('/');
                 }}

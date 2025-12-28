@@ -47,8 +47,7 @@ export const createBloodRequest = async (req, res) => {
   }
 };
 
-// @desc Get all pending requests for available donors
-// @route GET /api/blood/requests
+
 export const getPendingRequests = async (req, res) => {
   try {
     const donor = await BloodDonor.findOne({ user_id: req.user._id });
@@ -74,8 +73,7 @@ export const getPendingRequests = async (req, res) => {
   }
 };
 
-// @desc Donor accepts a blood request
-// @route PATCH /api/blood/accept/:id
+
 export const acceptBloodRequest = async (req, res) => {
   try {
     const donor_id = req.user._id;
@@ -114,8 +112,7 @@ export const acceptBloodRequest = async (req, res) => {
   }
 };
 
-// @desc Get all requests for logged-in patient
-// @route GET /api/blood/my-requests
+
 export const getMyRequests = async (req, res) => {
   try {
     const patient_id = req.user._id;
@@ -178,3 +175,45 @@ export const completeDonation = async (req, res) => {
     res.status(500).json({ message: 'Server error: ' + error.message });
   }
 };
+
+// @desc Donor donation history (completed donations)
+// @route GET /api/blood/history
+export const getDonationHistory = async (req, res) => {
+  try {
+    const donor = await BloodDonor.findOne({ user_id: req.user._id });
+    if (!donor) {
+      return res.status(404).json({ message: "Donor profile not found." });
+    }
+
+    const history = await BloodRequest.find({
+      donor_id: req.user._id,
+      status: "completed",
+    })
+      .sort({ completed_at: -1 })
+      .populate("patient_id", "name phone email");
+
+    const formatted = history.map((r) => ({
+      id: r._id,
+      status: r.status,
+      requested_at: r.requested_at,
+      accepted_at: r.accepted_at,
+      completed_at: r.completed_at,
+
+      // patient snapshot fields stored in request (your controller saves these) [file:249]
+      name: r.name || r.patient_id?.name,
+      email: r.email || r.patient_id?.email,
+      phone: r.phone || r.patient_id?.phone,
+
+      // request info fields (based on your updated controller) [file:249]
+      blood_group: r.blood_group,
+      age: r.age,
+      gender: r.gender,
+      note: r.note,
+    }));
+
+    res.status(200).json(formatted);
+  } catch (error) {
+    res.status(500).json({ message: "Server error: " + error.message });
+  }
+};
+
