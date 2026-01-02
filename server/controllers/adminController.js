@@ -61,7 +61,7 @@ export const getStaffSchedules = async (req, res) => {
 };
 
 // POST /api/admin/staff-schedule
-export const createStaffSchedule = async (req, res) => {
+export const  createStaffSchedule = async (req, res) => {
   try {
     const { staff_id, date, shift_type } = req.body;
 
