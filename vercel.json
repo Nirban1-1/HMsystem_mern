@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd Hospital-Management-MERN/client && npm install && npm run build",
-  "outputDirectory": "Hospital-Management-MERN/client/dist",
+  "buildCommand": "cd Hospital-Management-Mern/client && npm install && npm run build",
+  "outputDirectory": "Hospital-Management-Mern/client/dist",
   "framework": "vite",
   "installCommand": "echo 'Skipping root install'"
 }
