@@ -38,30 +38,35 @@ const allowedOrigins = [
   "https://h-msystem.vercel.app" // production
 ];
 
-const corsOptions = {
-  origin: (origin, cb) => {
-    // Allow requests with no origin (Postman, curl, mobile apps)
-    if (!origin) return cb(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      return cb(null, true);
-    }
-    
-    console.warn(`CORS blocked for origin: ${origin}`);
-    return cb(new Error(`CORS policy: origin not allowed`));
-  },
+// ✅ Step 1: Basic CORS middleware
+app.use(cors({
+  origin: allowedOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  exposedHeaders: ["X-Total-Count"], // If you send custom response headers
-  optionsSuccessStatus: 200 // For legacy browsers
-};
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 200
+}));
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
+// ✅ Step 2: Explicit preflight handler (BEFORE routes)
+app.options("*", (req, res) => {
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Max-Age", "86400"); // 24 hours
+  }
+  
+  res.sendStatus(200);
+});
 
-// Preflight for all routes (handles OPTIONS requests)
-app.options("*", cors(corsOptions)); // Use same config, not empty cors()
+// ✅ Step 3: Debug middleware - log all requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  next();
+});
 
 // Routes
 app.use("/api/users", userRoutes);
@@ -85,20 +90,34 @@ app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-// Error handling middleware (catches CORS errors)
-app.use((err, req, res, next) => {
-  if (err.message.includes("CORS")) {
-    console.error("CORS Error:", err.message);
-    return res.status(403).json({ error: err.message });
-  }
-  next(err);
+// 404 handler (BEFORE error handler)
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
 });
 
-// Local dev listen only (Vercel runs as serverless)
+// ✅ Step 4: Global error handler (sends CORS headers even on error)
+app.use((err, req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Send CORS headers even if there's an error
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+  
+  console.error(`[ERROR] ${err.message}`);
+  console.error(err.stack);
+  
+  res.status(err.status || 500).json({
+    error: err.message || "Server error",
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack })
+  });
+});
+
+// Listen
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
 }
 
-// Vercel serverless export
 export default app;
