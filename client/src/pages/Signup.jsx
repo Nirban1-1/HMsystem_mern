@@ -41,7 +41,9 @@ const Signup = () => {
       navigate('/account');
     } catch (err) {
       console.error('Registration failed:', err.response?.data || err.message || err);
-      setError(err.response?.data?.message || 'Registration failed');
+      const respData = err.response?.data;
+      const message = respData?.message || (respData ? JSON.stringify(respData) : err.message) || 'Registration failed';
+      setError(message);
     }
   };
 
