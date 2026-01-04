@@ -22,38 +22,46 @@ import staffRoutes from "./routes/staffRoutes.js";
 
 dotenv.config();
 
-// Connect DB (make sure your connectDB uses process.env.MONGO_URI)
+// Connect DB
 connectDB();
 
 const app = express();
 
-// Body parsers
+// Body parsers (BEFORE CORS)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS (allow your frontend)
+// CORS Configuration
 const allowedOrigins = [
   "http://localhost:5173",       // Vite dev
-  "http://localhost:3000",       // if sometimes using CRA
-  "https://h-msystem.vercel.app" // your deployed frontend
+  "http://localhost:3000",       // CRA fallback
+  "https://h-msystem.vercel.app" // production
 ];
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // allow requests with no origin (Postman/curl)
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-  })
-);
+const corsOptions = {
+  origin: (origin, cb) => {
+    // Allow requests with no origin (Postman, curl, mobile apps)
+    if (!origin) return cb(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      return cb(null, true);
+    }
+    
+    console.warn(`CORS blocked for origin: ${origin}`);
+    return cb(new Error(`CORS policy: origin not allowed`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["X-Total-Count"], // If you send custom response headers
+  optionsSuccessStatus: 200 // For legacy browsers
+};
 
-// Preflight for all routes
-app.options("*", cors()); // Helps with credentialed CORS preflight issues [web:223]
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Preflight for all routes (handles OPTIONS requests)
+app.options("*", cors(corsOptions)); // Use same config, not empty cors()
 
 // Routes
 app.use("/api/users", userRoutes);
@@ -77,7 +85,16 @@ app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-// Local dev listen only (Vercel will run it as a serverless function)
+// Error handling middleware (catches CORS errors)
+app.use((err, req, res, next) => {
+  if (err.message.includes("CORS")) {
+    console.error("CORS Error:", err.message);
+    return res.status(403).json({ error: err.message });
+  }
+  next(err);
+});
+
+// Local dev listen only (Vercel runs as serverless)
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
